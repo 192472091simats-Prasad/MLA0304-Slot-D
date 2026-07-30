@@ -1,0 +1,54 @@
+states = ["A", "B", "C", "Goal"]
+
+transitions = {
+    "A": ("B", 1),
+    "B": ("C", 2),
+    "C": ("Goal", 10),
+    "Goal": ("Goal", 0)
+}
+
+current_state = "A"
+
+total_reward = 0
+
+print("Starting State:", current_state)
+
+while current_state != "Goal":
+
+    next_state, reward = transitions[current_state]
+
+    print("Current State :", current_state)
+    print("Next State    :", next_state)
+    print("Reward        :", reward)
+    print("----------------------")
+
+    total_reward += reward
+
+    current_state = next_state
+
+print("Goal Reached!")
+
+print("Total Reward =", total_reward)
+
+
+Sample Output
+Starting State: A
+
+Current State : A
+Next State    : B
+Reward        : 1
+----------------------
+
+Current State : B
+Next State    : C
+Reward        : 2
+----------------------
+
+Current State : C
+Next State    : Goal
+Reward        : 10
+----------------------
+
+Goal Reached!
+
+Total Reward = 13
