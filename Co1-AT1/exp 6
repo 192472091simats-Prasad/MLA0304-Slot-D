@@ -1,0 +1,32 @@
+import random
+
+actions = [10, 5, 20, 15]
+
+epsilon = 0.2
+
+print("Action Values:", actions)
+
+# Greedy
+greedy = max(actions)
+print("Greedy Action:", greedy)
+
+# Random
+random_action = random.choice(actions)
+print("Random Action:", random_action)
+
+# ε-Greedy
+if random.random() < epsilon:
+    selected = random.choice(actions)
+    print("ε-Greedy selected random:", selected)
+else:
+    print("ε-Greedy selected greedy:", greedy)
+
+
+    Sample Output
+Action Values: [10, 5, 20, 15]
+
+Greedy Action: 20
+
+Random Action: 10
+
+ε-Greedy selected greedy: 20
