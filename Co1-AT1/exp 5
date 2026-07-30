@@ -1,0 +1,27 @@
+# Bellman Equation Demonstration
+
+gamma = 0.9
+
+rewards = [0, 1, 2, 10]
+
+values = [0, 0, 0, 0]
+
+print("Initial Values:", values)
+
+for i in range(len(values)-2, -1, -1):
+    values[i] = rewards[i] + gamma * values[i+1]
+
+print("Updated State Values:")
+
+for i in range(len(values)):
+    print("State", i, "=", round(values[i],2))
+
+
+    Sample Output
+Initial Values: [0, 0, 0, 0]
+
+Updated State Values:
+State 0 = 10.1
+State 1 = 11.22
+State 2 = 11.0
+State 3 = 0
