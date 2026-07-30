@@ -1,0 +1,40 @@
+import random
+
+rewards = [1, 2, 5, 10]
+
+total_reward = 0
+
+epsilon = 0.2
+
+for i in range(10):
+
+    if random.random() < epsilon:
+        arm = random.randint(0,3)
+    else:
+        arm = rewards.index(max(rewards))
+
+    reward = rewards[arm]
+
+    total_reward += reward
+
+    print("Round",i+1,
+          "Selected Arm:",arm,
+          "Reward:",reward)
+
+print("\nTotal Reward =",total_reward)
+
+
+
+Sample Output
+Round 1 Selected Arm: 3 Reward: 10
+Round 2 Selected Arm: 3 Reward: 10
+Round 3 Selected Arm: 0 Reward: 1
+Round 4 Selected Arm: 3 Reward: 10
+Round 5 Selected Arm: 3 Reward: 10
+Round 6 Selected Arm: 3 Reward: 10
+Round 7 Selected Arm: 3 Reward: 10
+Round 8 Selected Arm: 3 Reward: 10
+Round 9 Selected Arm: 3 Reward: 10
+Round10 Selected Arm: 3 Reward: 10
+
+Total Reward = 91
