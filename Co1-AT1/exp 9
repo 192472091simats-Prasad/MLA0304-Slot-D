@@ -1,0 +1,23 @@
+import tensorflow as tf
+
+model = tf.keras.Sequential([
+    tf.keras.layers.Dense(16,activation='relu',input_shape=(4,)),
+    tf.keras.layers.Dense(16,activation='relu'),
+    tf.keras.layers.Dense(2)
+])
+
+model.summary()
+
+
+Sample Output
+Model: "sequential"
+
+Layer (type)        Output Shape
+
+Dense               (None,16)
+
+Dense               (None,16)
+
+Dense               (None,2)
+
+Total params: 386
