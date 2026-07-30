@@ -1,0 +1,28 @@
+import gymnasium as gym
+import numpy as np
+import tensorflow as tf
+import keras
+
+print("Gymnasium Version :", gym.__version__)
+print("NumPy Version :", np.__version__)
+print("TensorFlow Version :", tf.__version__)
+print("Keras Version :", keras.__version__)
+
+# Create Environment
+env = gym.make("FrozenLake-v1")
+
+observation, info = env.reset()
+
+print("\nEnvironment Created Successfully!")
+print("Initial State :", observation)
+
+env.close()
+
+##Sample OUTput
+Gymnasium Version : 1.2.0
+NumPy Version : 2.3.1
+TensorFlow Version : 2.19.0
+Keras Version : 3.11.0
+
+Environment Created Successfully!
+Initial State : 0
