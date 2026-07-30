@@ -1,0 +1,53 @@
+import gymnasium as gym
+
+# Create environment
+env = gym.make("FrozenLake-v1")
+
+state, info = env.reset()
+
+done = False
+total_reward = 0
+
+print("Starting State:", state)
+
+while not done:
+
+    # Random policy
+    action = env.action_space.sample()
+
+    next_state, reward, terminated, truncated, info = env.step(action)
+
+    print("Current State :", state)
+    print("Action Taken  :", action)
+    print("Next State    :", next_state)
+    print("Reward        :", reward)
+    print("---------------------------")
+
+    total_reward += reward
+
+    state = next_state
+
+    done = terminated or truncated
+
+print("Episode Finished")
+print("Total Reward =", total_reward)
+
+env.close()
+
+Sample Output
+Starting State: 0
+
+Current State : 0
+Action Taken  : 2
+Next State    : 1
+Reward        : 0.0
+---------------------------
+
+Current State : 1
+Action Taken  : 1
+Next State    : 5
+Reward        : 0.0
+---------------------------
+
+Episode Finished
+Total Reward = 0.0
