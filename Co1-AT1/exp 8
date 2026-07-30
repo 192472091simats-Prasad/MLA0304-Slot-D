@@ -1,0 +1,26 @@
+import matplotlib.pyplot as plt
+
+rewards = [2,4,5,7,8,10,12,15,18,20]
+
+episodes = list(range(1,11))
+
+plt.plot(episodes,rewards,marker='o')
+
+plt.title("Episode Reward")
+
+plt.xlabel("Episodes")
+
+plt.ylabel("Reward")
+
+plt.grid(True)
+
+plt.show()
+
+
+Expected Graph
+
+The graph displays:
+
+X-axis: Episodes (1–10)
+Y-axis: Rewards (2–20)
+An increasing line showing the agent's learning progress.
