@@ -1,0 +1,74 @@
+import numpy as np
+import random
+
+# --- MDP Environment ---
+class CleaningRobotMDP:
+    def __init__(self, size=5):
+        self.size = size
+        self.grid = np.zeros((size, size))
+        
+        # Rewards: +1 for dirt, -1 for obstacle, 0 for empty
+        self.grid[0, 4] = +1
+        self.grid[2, 2] = +1
+        self.grid[4, 3] = +1
+        self.grid[1, 2] = -1
+        self.grid[2, 3] = -1
+        self.grid[3, 1] = -1
+        
+        self.start = (0, 0)
+        self.state = self.start
+        self.total_reward = 0
+        self.actions = ['UP', 'DOWN', 'LEFT', 'RIGHT']
+
+    def reset(self):
+        self.state = self.start
+        self.total_reward = 0
+        return self.state
+
+    def step(self, action):
+        x, y = self.state
+        if action == 'UP': x -= 1
+        elif action == 'DOWN': x += 1
+        elif action == 'LEFT': y -= 1
+        elif action == 'RIGHT': y += 1
+
+        # Check boundaries
+        if x < 0 or y < 0 or x >= self.size or y >= self.size:
+            reward = -1  # wall hit
+            x, y = self.state
+        else:
+            reward = self.grid[x, y]
+            if reward == +1:  # clean dirt
+                self.grid[x, y] = 0
+
+        self.state = (x, y)
+        self.total_reward += reward
+        return self.state, reward
+
+# --- Policies ---
+def random_policy(env, steps=20):
+    print("\n--- Random Policy ---")
+    env.reset()
+    for _ in range(steps):
+        action = random.choice(env.actions)
+        state, reward = env.step(action)
+        print(f"Action: {action} | State: {state} | Reward: {reward}")
+    print(f"Total Reward: {env.total_reward}\n")
+
+def greedy_policy(env, steps=20):
+    print("\n--- Greedy Policy ---")
+    env.reset()
+    for _ in range(steps):
+        x, y = env.state
+        # Move towards bottom-right corner (simple greedy heuristic)
+        if x < env.size - 1: action = 'DOWN'
+        elif y < env.size - 1: action = 'RIGHT'
+        else: action = random.choice(env.actions)
+        state, reward = env.step(action)
+        print(f"Action: {action} | State: {state} | Reward: {reward}")
+    print(f"Total Reward: {env.total_reward}\n")
+
+# --- Run Simulation ---
+env = CleaningRobotMDP()
+random_policy(env)
+greedy_policy(env)
