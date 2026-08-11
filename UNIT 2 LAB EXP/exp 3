@@ -1,0 +1,104 @@
+import numpy as np
+import random
+
+# Maze size
+GRID_SIZE = 5
+
+# Define states
+states = [(i, j) for i in range(GRID_SIZE) for j in range(GRID_SIZE)]
+
+# Define goal and traps
+goal = (4, 4)
+traps = [(1, 3), (2, 1), (3, 2)]
+
+# Initialize state-values
+V = {s: 0 for s in states}
+
+# Actions
+actions = ["UP", "DOWN", "LEFT", "RIGHT"]
+
+# Move function
+def move(state, action):
+    x, y = state
+
+    if action == "UP":
+        x = max(0, x - 1)
+    elif action == "DOWN":
+        x = min(GRID_SIZE - 1, x + 1)
+    elif action == "LEFT":
+        y = max(0, y - 1)
+    elif action == "RIGHT":
+        y = min(GRID_SIZE - 1, y + 1)
+
+    return (x, y)
+
+# Reward function
+def reward_function(state):
+    if state == goal:
+        return 10
+    elif state in traps:
+        return -10
+    else:
+        return -1
+
+# TD(0) algorithm
+def td_zero(episodes=500):
+    alpha = 0.1
+    gamma = 0.9
+
+    for ep in range(episodes):
+        state = (0, 0)  # Always start at top-left
+
+        while True:
+            action = random.choice(actions)
+            next_state = move(state, action)
+            reward = reward_function(next_state)
+
+            # TD(0) Update
+            V[state] += alpha * (reward + gamma * V[next_state] - V[state])
+
+            if next_state == goal or next_state in traps:
+                break
+
+            state = next_state
+
+    return V
+
+# Train value function
+V = td_zero()
+
+# Extract optimal policy
+def get_policy():
+    policy = {}
+    for s in states:
+        if s == goal or s in traps:
+            policy[s] = "TERMINAL"
+            continue
+
+        # Choose action that leads to highest value next state
+        best_action = None
+        best_value = -999
+
+        for a in actions:
+            ns = move(s, a)
+            if V[ns] > best_value:
+                best_value = V[ns]
+                best_action = a
+
+        policy[s] = best_action
+    return policy
+
+policy = get_policy()
+
+# Display results
+print("\nState Values (V):")
+for i in range(GRID_SIZE):
+    for j in range(GRID_SIZE):
+        print(f"{V[(i,j)]:6.2f}", end=" ")
+    print()
+
+print("\nOptimal Policy:")
+for i in range(GRID_SIZE):
+    for j in range(GRID_SIZE):
+        print(f"{policy[(i,j)]:10}", end=" ")
+    print()
