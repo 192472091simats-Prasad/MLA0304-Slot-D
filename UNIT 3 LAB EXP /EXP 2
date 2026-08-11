@@ -1,0 +1,64 @@
+import numpy as np
+import random
+
+# Environment: 4-way intersection
+ACTIONS = ["GO", "WAIT"]  # Car can go or wait
+TRAFFIC_LIGHTS = ["GREEN", "RED"]  # Simplified traffic lights
+EPISODES = 2000
+
+alpha_actor = 0.01
+alpha_critic = 0.1
+gamma = 0.9
+
+# Initialize Actor (policy) and Critic (state-value)
+policy = {}
+V = {}
+states = [(t, l) for t in range(2) for l in range(2)]  # t=0: no car, t=1: other car; l=0: RED, l=1: GREEN
+for s in states:
+    policy[s] = np.array([0.5, 0.5])  # Equal probability for GO, WAIT
+    V[s] = 0.0
+
+# Helper functions
+def choose_action(state):
+    return np.random.choice(len(ACTIONS), p=policy[state])
+
+def reward(state, action):
+    other_car, light = state
+    if action == 0:  # GO
+        if light == 0:  # RED
+            return -10  # collision risk
+        elif other_car == 1:  # Another car crossing
+            return -10  # collision
+        else:
+            return 0  # safe pass
+    else:  # WAIT
+        return -1  # time penalty
+
+def next_state(state, action):
+    # Traffic light changes randomly
+    new_light = np.random.choice([0,1])
+    # Other car appears randomly
+    other_car = np.random.choice([0,1])
+    return (other_car, new_light)
+
+# Actor-Critic (A2C) algorithm
+for ep in range(EPISODES):
+    state = (0, 0)  # start: no car, RED light
+    for t in range(10):  # 10 timesteps per episode
+        action_idx = choose_action(state)
+        r = reward(state, action_idx)
+        next_s = next_state(state, action_idx)
+        # TD Error
+        td_error = r + gamma * V[next_s] - V[state]
+        # Update Critic
+        V[state] += alpha_critic * td_error
+        # Update Actor
+        policy[state][action_idx] += alpha_actor * td_error * (1 - policy[state][action_idx])
+        policy[state] = np.clip(policy[state], 0.01, 0.99)
+        policy[state] /= np.sum(policy[state])  # normalize
+        state = next_s
+
+# Display learned policy
+print("\nLearned Policy (probability of GO, WAIT) at intersection:")
+for s in states:
+    print(f"State {s} -> GO: {policy[s][0]:.2f}, WAIT: {policy[s][1]:.2f}")
