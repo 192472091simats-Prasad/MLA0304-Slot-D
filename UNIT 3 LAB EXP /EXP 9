@@ -1,0 +1,60 @@
+import numpy as np
+import random
+
+# Environment: e-commerce products
+NUM_PRODUCTS = 5
+EPISODES = 2000
+gamma = 0.9
+lr_actor = 0.01
+lr_critic = 0.05
+
+# Simulated demand curve (higher price -> lower demand)
+base_demand = np.random.randint(50, 100, NUM_PRODUCTS)
+competitor_prices = np.random.randint(10, 50, NUM_PRODUCTS)
+
+# Actor: price adjustment preferences
+actor_weights = np.random.randn(NUM_PRODUCTS) * 0.01
+# Critic: estimated value of state
+critic_weights = np.random.randn(NUM_PRODUCTS) * 0.01
+
+def softmax(prefs):
+    exp_prefs = np.exp(prefs - np.max(prefs))
+    return exp_prefs / np.sum(exp_prefs)
+
+def choose_price(state):
+    prefs = state * actor_weights
+    probs = softmax(prefs)
+    # map to price range [10,50]
+    price_idx = np.random.choice(NUM_PRODUCTS, p=probs)
+    price = 10 + probs[price_idx]*40
+    return price, probs
+
+def reward(price, demand, competitor_price):
+    # revenue = price * effective demand
+    effective_demand = max(0, demand - 0.5*(price - competitor_price))
+    revenue = price * effective_demand
+    return revenue
+
+# TRPO-like training loop
+for ep in range(EPISODES):
+    state = base_demand.copy()
+    trajectory = []
+    for p in range(NUM_PRODUCTS):
+        price, probs = choose_price(state)
+        r = reward(price, state[p], competitor_prices[p])
+        trajectory.append((state.copy(), price, r, probs))
+    # Compute returns and update actor/critic
+    G = 0
+    for s, price, r, probs in reversed(trajectory):
+        G = r + gamma * G
+        td_error = G - np.dot(s, critic_weights)
+        critic_weights += lr_critic * td_error * s
+        grad = np.zeros_like(actor_weights)
+        grad += td_error * s  # simplified TRPO-like update
+        actor_weights += lr_actor * grad
+
+# Simulate optimized pricing
+print("\nOptimized Product Prices (TRPO-like):")
+for i in range(NUM_PRODUCTS):
+    price, _ = choose_price(base_demand)
+    print(f"Product {i}: ${price:.2f} (Competitor: ${competitor_prices[i]})")
