@@ -1,0 +1,95 @@
+import numpy as np
+import random
+
+# Grid world size
+GRID_SIZE = 5
+
+# Actions
+actions = ["UP", "DOWN", "LEFT", "RIGHT"]
+
+# Returns structure
+returns = {}
+Q = {}
+policy = {}
+
+# Initialize Q-values and policy
+for x in range(GRID_SIZE):
+    for y in range(GRID_SIZE):
+        state = (x, y)
+        Q[state] = {a: 0 for a in actions}
+        policy[state] = random.choice(actions)
+        returns[state] = {a: [] for a in actions}
+
+
+# Movement rules
+def move(state, action):
+    x, y = state
+
+    if action == "UP":
+        x = max(0, x - 1)
+    elif action == "DOWN":
+        x = min(GRID_SIZE - 1, x + 1)
+    elif action == "LEFT":
+        y = max(0, y - 1)
+    elif action == "RIGHT":
+        y = min(GRID_SIZE - 1, y + 1)
+
+    return (x, y)
+
+
+# Reward system
+def reward_function(state):
+    if state == (4, 4):  # goal
+        return 20
+    return -1  # time + fuel cost
+
+
+# Monte Carlo Control (Exploring Starts)
+def monte_carlo_control(episodes=5000):
+    for episode in range(episodes):
+
+        # Exploring start
+        state = (random.randint(0, 4), random.randint(0, 4))
+        action = random.choice(actions)
+
+        episode_history = []
+        visited = set()
+
+        # Run episode
+        while True:
+
+            next_state = move(state, action)
+            reward = reward_function(next_state)
+
+            episode_history.append((state, action, reward))
+
+            if next_state == (4, 4):  # reached delivery point
+                break
+
+            state = next_state
+            action = policy[state]
+
+        # Monte Carlo Updates
+        G = 0
+        for state, action, reward in reversed(episode_history):
+            G += reward
+            if (state, action) not in visited:
+                returns[state][action].append(G)
+                Q[state][action] = np.mean(returns[state][action])
+
+                # Improve policy (greedy)
+                policy[state] = max(Q[state], key=Q[state].get)
+                visited.add((state, action))
+
+    return policy, Q
+
+
+# Train Policy
+policy, Q = monte_carlo_control(episodes=3000)
+
+print("Optimized Policy:\n")
+for x in range(GRID_SIZE):
+    for y in range(GRID_SIZE):
+        print(f"{(x, y)} -> {policy[(x, y)]}")
+    print()
+
