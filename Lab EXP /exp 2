@@ -1,0 +1,73 @@
+import numpy as np
+
+# --- Environment setup ---
+class WarehouseRobot:
+    def __init__(self, size=4):
+        self.size = size
+        self.states = [(i, j) for i in range(size) for j in range(size)]
+        self.actions = ['UP', 'DOWN', 'LEFT', 'RIGHT']
+        self.goal = (3, 3)
+        self.items = [(1, 1), (2, 2)]
+        self.obstacles = [(1, 2), (2, 1)]
+
+    def get_reward(self, state):
+        if state in self.items:
+            return 2   # picking an item
+        elif state == self.goal:
+            return 5   # reaching goal
+        elif state in self.obstacles:
+            return -2  # hitting obstacle
+        else:
+            return 0   # empty cell
+
+    def next_state(self, state, action):
+        x, y = state
+        if action == 'UP': x -= 1
+        elif action == 'DOWN': x += 1
+        elif action == 'LEFT': y -= 1
+        elif action == 'RIGHT': y += 1
+
+        # Boundary conditions
+        if x < 0 or y < 0 or x >= self.size or y >= self.size:
+            return state  # stay in same place
+        return (x, y)
+
+
+# --- Policy Evaluation ---
+def policy_evaluation(env, policy, gamma=0.9, theta=1e-4):
+    V = {s: 0 for s in env.states}  # initial value function
+
+    while True:
+        delta = 0
+        for s in env.states:
+            v = V[s]
+            new_v = 0
+            for a, prob in policy[s].items():
+                next_s = env.next_state(s, a)
+                reward = env.get_reward(next_s)
+                new_v += prob * (reward + gamma * V[next_s])
+            V[s] = new_v
+            delta = max(delta, abs(v - new_v))
+        if delta < theta:
+            break
+    return V
+
+
+# --- Define Environment ---
+env = WarehouseRobot(size=4)
+
+# --- Define a uniform random policy ---
+policy = {
+    s: {a: 0.25 for a in env.actions} for s in env.states
+}
+
+# --- Evaluate Policy ---
+values = policy_evaluation(env, policy)
+
+# --- Display Result ---
+print("\nValue Function (after policy evaluation):")
+for i in range(env.size):
+    for j in range(env.size):
+        print(f"{values[(i, j)]:6.2f}", end="  ")
+    print()
+
