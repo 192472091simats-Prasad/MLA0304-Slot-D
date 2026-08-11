@@ -1,0 +1,159 @@
+import numpy as np
+import random
+
+random.seed(42)
+np.random.seed(42)
+
+# Grid / environment parameters
+ROWS, COLS = 5, 5
+START = (4, 0)
+GOAL = (0, 4)
+OBSTACLES = []   # no static obstacles for simplicity; intersections only
+INTERSECTIONS = {(2,2), (1,3), (3,1)}  # intersections with traffic lights
+LIGHT_PERIOD = 4  # light flips every 4 time-steps: 0..1..2..3 then flips
+MAX_STEPS = 40
+
+ACTIONS = {'U':(-1,0),'D':(1,0),'L':(0,-1),'R':(0,1)}
+ACTION_LIST = list(ACTIONS.keys())
+
+def valid(pos):
+    r,c = pos
+    return 0 <= r < ROWS and 0 <= c < COLS
+
+def step(pos, action):
+    dr,dc = ACTIONS[action]
+    new = (pos[0]+dr, pos[1]+dc)
+    if not valid(new):
+        return pos, False  # invalid move: stays, counts as collision-like (we'll treat separately)
+    return new, True
+
+def light_state(step_count, intersection):
+    # simple round-robin: for each intersection define phase offset to vary patterns
+    offsets = { (2,2):0, (1,3):1, (3,1):2 }
+    phase = ((step_count + offsets[intersection]) // LIGHT_PERIOD) % 2
+    # phase 0 -> NS green (allow Up/Down), phase 1 -> EW green (allow Left/Right)
+    return 'NS' if phase == 0 else 'EW'
+
+# Policies
+def policy_follow_lights(state, step_count):
+    pos = state
+    # simple short-path policy: greedy toward goal (manhattan)
+    # prefer horizontal or vertical based on distance
+    dr = GOAL[0] - pos[0]
+    dc = GOAL[1] - pos[1]
+    # choose action list by priority
+    pri = []
+    if abs(dr) >= abs(dc):
+        pri += ['D' if dr>0 else 'U']
+        if dc!=0: pri += ['R' if dc>0 else 'L']
+    else:
+        pri += ['R' if dc>0 else 'L']
+        if dr!=0: pri += ['D' if dr>0 else 'U']
+    pri += [a for a in ACTION_LIST if a not in pri]
+    for a in pri:
+        newpos, valid_move = step(pos, a)
+        if not valid_move:
+            continue
+        # if moving through intersection, check light
+        if newpos in INTERSECTIONS:
+            ls = light_state(step_count, newpos)
+            # if moving Up/Down allow only NS; Left/Right allow only EW
+            if a in ('U','D') and ls != 'NS':
+                continue  # wait instead of moving
+            if a in ('L','R') and ls != 'EW':
+                continue
+        # allowed
+        return a
+    # if none allowed, wait (return None)
+    return None
+
+def policy_aggressive(state, step_count):
+    pos = state
+    dr = GOAL[0] - pos[0]
+    dc = GOAL[1] - pos[1]
+    # same greedy priorities but ignore lights: always move
+    pri = []
+    if abs(dr) >= abs(dc):
+        pri += ['D' if dr>0 else 'U']
+        if dc!=0: pri += ['R' if dc>0 else 'L']
+    else:
+        pri += ['R' if dc>0 else 'L']
+        if dr!=0: pri += ['D' if dr>0 else 'U']
+    pri += [a for a in ACTION_LIST if a not in pri]
+    for a in pri:
+        newpos, valid_move = step(pos, a)
+        if not valid_move:
+            continue
+        return a
+    return None
+
+def policy_cautious(state, step_count):
+    # like follow_lights but also waits one extra step at intersections even if green (simulates cautious behavior)
+    pos = state
+    # if currently at intersection, wait one step to "scan"
+    if pos in INTERSECTIONS and (step_count % 3 == 0):
+        return None
+    return policy_follow_lights(state, step_count)
+
+# Simulator
+def run_episode(policy_fn, render=False):
+    pos = START
+    steps = 0
+    collisions = 0
+    for t in range(MAX_STEPS):
+        if pos == GOAL:
+            return True, steps, collisions
+        action = policy_fn(pos, t)
+        if action is None:
+            steps += 1
+            continue
+        newpos, moved = step(pos, action)
+        # moving into invalid cell treated as collision
+        if not moved:
+            collisions += 1
+            steps += 1
+            continue
+        # if moving into intersection while light forbids (only possible for aggressive), treat as collision
+        if newpos in INTERSECTIONS:
+            ls = light_state(t, newpos)
+            if policy_fn is policy_aggressive:
+                # aggressive ignores lights: penalize if movement conflict with light
+                if action in ('U','D') and ls != 'NS':
+                    collisions += 1
+                if action in ('L','R') and ls != 'EW':
+                    collisions += 1
+        pos = newpos
+        steps += 1
+    # max steps reached, treat as failure
+    return False, steps, collisions
+
+def evaluate(policy_fn, episodes=200):
+    success = 0
+    total_steps = 0
+    total_coll = 0
+    for _ in range(episodes):
+        s, st, coll = run_episode(policy_fn)
+        if s: success += 1
+        total_steps += st
+        total_coll += coll
+    return {
+        'success_rate': success/episodes,
+        'avg_steps': total_steps/episodes,
+        'avg_collisions': total_coll/episodes
+    }
+
+# Evaluate all three policies
+policies = {
+    'FollowLights': policy_follow_lights,
+    'Aggressive': policy_aggressive,
+    'Cautious': policy_cautious
+}
+
+results = {}
+for name, fn in policies.items():
+    res = evaluate(fn, episodes=500)
+    results[name] = res
+
+# Print concise results
+for name, r in results.items():
+    print(f"{name}: Success={r['success_rate']*100:.1f}%, AvgSteps={r['avg_steps']:.2f}, AvgCollisions={r['avg_collisions']:.3f}")
