@@ -1,0 +1,81 @@
+import numpy as np
+import random
+
+# Environment: 5x5 city grid
+GRID_SIZE = 5
+EPISODES = 2000
+gamma = 0.9
+alpha_actor = 0.01
+alpha_critic = 0.05
+
+START = (0,0)
+DESTINATIONS = [(4,4), (2,3), (3,1)]
+NO_FLY_ZONES = [(1,1),(1,2),(3,3)]
+ACTIONS = ["UP","DOWN","LEFT","RIGHT"]
+
+# Initialize actor (continuous preference per action) and critic (state-value)
+actor_weights = { (i,j): np.random.rand(len(ACTIONS))*0.01 for i in range(GRID_SIZE) for j in range(GRID_SIZE)}
+critic_weights = { (i,j): 0.0 for i in range(GRID_SIZE) for j in range(GRID_SIZE)}
+
+def softmax(prefs):
+    exp_prefs = np.exp(prefs - np.max(prefs))
+    return exp_prefs / np.sum(exp_prefs)
+
+def choose_action(state):
+    prefs = actor_weights[state]
+    probs = softmax(prefs)
+    action = np.random.choice(ACTIONS, p=probs)
+    return action, probs
+
+def move(state, action):
+    x, y = state
+    if action=="UP": x = max(0,x-1)
+    if action=="DOWN": x = min(GRID_SIZE-1,x+1)
+    if action=="LEFT": y = max(0,y-1)
+    if action=="RIGHT": y = min(GRID_SIZE-1,y+1)
+    new_state = (x,y)
+    if new_state in NO_FLY_ZONES:
+        return state  # stay in place if no-fly zone
+    return new_state
+
+def reward(state, destination):
+    if state==destination: return 10
+    if state in NO_FLY_ZONES: return -5
+    return -1  # cost per step
+
+# DDPG-like training loop
+for ep in range(EPISODES):
+    destination = random.choice(DESTINATIONS)
+    state = START
+    trajectory = []
+    for t in range(20):
+        action, probs = choose_action(state)
+        next_state = move(state, action)
+        r = reward(next_state, destination)
+        trajectory.append((state, action, r, probs))
+        state = next_state
+        if state==destination: break
+    # Update actor and critic
+    G = 0
+    for s, a, r, probs in reversed(trajectory):
+        G = r + gamma*G
+        td_error = G - critic_weights[s]
+        critic_weights[s] += alpha_critic * td_error
+        # Actor update
+        a_idx = ACTIONS.index(a)
+        grad = np.zeros(len(ACTIONS))
+        grad[a_idx] = 1 - probs[a_idx]
+        grad -= probs
+        actor_weights[s] += alpha_actor * td_error * grad
+
+# Test: simulate drone delivery
+destination = (4,4)
+state = START
+path = [state]
+while state != destination:
+    action, _ = choose_action(state)
+    state = move(state, action)
+    path.append(state)
+
+print("\nOptimized Drone Delivery Path (DDPG-like):")
+print(path)
