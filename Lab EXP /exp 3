@@ -1,0 +1,100 @@
+import numpy as np
+import random
+from math import sqrt, log
+
+# ---------------------------------------
+# Pricing arms (Price points)
+# Arm = a price, Reward = revenue
+# ---------------------------------------
+prices = [50, 60, 70, 80]       # example prices
+true_conversion = [0.15, 0.12, 0.10, 0.07]  # probability customer buys
+n_arms = len(prices)
+rounds = 5000
+
+
+# ---------------------------------------
+# Helper: simulate revenue for an arm
+# ---------------------------------------
+def get_reward(arm):
+    if random.random() < true_conversion[arm]:
+        return prices[arm]   # customer buys → revenue = price
+    else:
+        return 0             # customer doesn’t buy
+
+
+# ---------------------------------------
+# 1. EPSILON-GREEDY
+# ---------------------------------------
+def epsilon_greedy(epsilon=0.1):
+    rewards = np.zeros(n_arms)
+    counts = np.zeros(n_arms)
+    total_reward = 0
+
+    for t in range(rounds):
+        if random.random() < epsilon:
+            arm = random.randint(0, n_arms - 1)
+        else:
+            arm = np.argmax(rewards / (counts + 1e-5))
+
+        r = get_reward(arm)
+        counts[arm] += 1
+        rewards[arm] += r
+        total_reward += r
+
+    return total_reward
+
+
+# ---------------------------------------
+# 2. UCB (Upper Confidence Bound)
+# ---------------------------------------
+def ucb():
+    rewards = np.zeros(n_arms)
+    counts = np.ones(n_arms)
+    total_reward = 0
+
+    for t in range(1, rounds + 1):
+        ucb_values = rewards / counts + np.sqrt(2 * np.log(t) / counts)
+        arm = np.argmax(ucb_values)
+
+        r = get_reward(arm)
+        counts[arm] += 1
+        rewards[arm] += r
+        total_reward += r
+
+    return total_reward
+
+
+# ---------------------------------------
+# 3. THOMPSON SAMPLING
+# ---------------------------------------
+def thompson_sampling():
+    alpha = np.ones(n_arms)
+    beta = np.ones(n_arms)
+    total_reward = 0
+
+    for _ in range(rounds):
+        samples = [np.random.beta(alpha[i], beta[i]) for i in range(n_arms)]
+        arm = np.argmax(samples)
+
+        r = get_reward(arm)
+        total_reward += r
+
+        if r > 0:
+            alpha[arm] += 1
+        else:
+            beta[arm] += 1
+
+    return total_reward
+
+
+# ---------------------------------------
+# Run all algorithms
+# ---------------------------------------
+reward_eps = epsilon_greedy()
+reward_ucb = ucb()
+reward_ts = thompson_sampling()
+
+print("Total Revenue Comparison:")
+print("Epsilon-Greedy:", reward_eps)
+print("UCB:", reward_ucb)
+print("Thompson Sampling:", reward_ts)
