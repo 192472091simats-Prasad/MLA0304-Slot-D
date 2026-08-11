@@ -1,0 +1,124 @@
+import numpy as np
+import random
+
+# Tic-Tac-Toe environment
+class TicTacToe:
+    def __init__(self):
+        self.board = [' ']*9
+        self.done = False
+        self.winner = None
+    
+    def reset(self):
+        self.board = [' ']*9
+        self.done = False
+        self.winner = None
+        return self.get_state()
+    
+    def get_state(self):
+        return np.array([1 if x=='X' else -1 if x=='O' else 0 for x in self.board])
+    
+    def available_actions(self):
+        return [i for i in range(9) if self.board[i]==' ']
+    
+    def step(self, action, mark):
+        if self.board[action] != ' ':
+            return self.get_state(), -10, True  # illegal move
+        self.board[action] = mark
+        reward = 0
+        self.done, self.winner = self.check_done()
+        if self.done:
+            if self.winner == mark:
+                reward = 1
+            elif self.winner is None:
+                reward = 0
+            else:
+                reward = -1
+        return self.get_state(), reward, self.done
+    
+    def check_done(self):
+        wins = [(0,1,2),(3,4,5),(6,7,8),(0,3,6),(1,4,7),(2,5,8),(0,4,8),(2,4,6)]
+        for a,b,c in wins:
+            if self.board[a]==self.board[b]==self.board[c]!=' ':
+                return True, self.board[a]
+        if ' ' not in self.board:
+            return True, None
+        return False, None
+    
+    def render(self):
+        print(f"{self.board[0]}|{self.board[1]}|{self.board[2]}")
+        print("-+-+-")
+        print(f"{self.board[3]}|{self.board[4]}|{self.board[5]}")
+        print("-+-+-")
+        print(f"{self.board[6]}|{self.board[7]}|{self.board[8]}")
+        print()
+
+# Vanilla Policy Gradient agent
+class Agent:
+    def __init__(self, lr=0.01):
+        self.lr = lr
+        self.theta = np.random.randn(9) * 0.01  # one weight per cell
+        self.gamma = 0.9
+    
+    def get_probs(self, state, available_actions):
+        prefs = np.array([self.theta[i] if i in available_actions else -np.inf for i in range(9)])
+        exp_prefs = np.exp(prefs - np.max(prefs))
+        probs = exp_prefs / np.sum(exp_prefs)
+        return probs
+    
+    def choose_action(self, state, available_actions):
+        probs = self.get_probs(state, available_actions)
+        action = np.random.choice(range(9), p=probs)
+        return action, probs
+    
+    def update(self, trajectory):
+        G = 0
+        for state, action, reward, probs in reversed(trajectory):
+            G = reward + self.gamma * G
+            grad = np.zeros(9)
+            grad[action] = 1 - probs[action]
+            grad -= probs
+            self.theta += self.lr * G * grad
+
+# Training loop
+env = TicTacToe()
+agent = Agent()
+episodes = 3000
+
+for ep in range(episodes):
+    state = env.reset()
+    trajectory = []
+    while True:
+        available_actions = env.available_actions()
+        action, probs = agent.choose_action(state, available_actions)
+        next_state, reward, done = env.step(action, 'X')
+        trajectory.append((state, action, reward, probs))
+        state = next_state
+        if done:
+            agent.update(trajectory)
+            break
+        # Human/random opponent move
+        opp_action = random.choice(env.available_actions())
+        state, _, done = env.step(opp_action, 'O')
+        if done:
+            break
+
+# Play against trained agent
+state = env.reset()
+env.render()
+while True:
+    available_actions = env.available_actions()
+    action, _ = agent.choose_action(state, available_actions)
+    state, reward, done = env.step(action, 'X')
+    print("Agent's Move:")
+    env.render()
+    if done:
+        print("Game Over! Reward:", reward)
+        break
+    # Human/random opponent
+    opp_action = random.choice(env.available_actions())
+    state, reward, done = env.step(opp_action, 'O')
+    print("Opponent's Move:")
+    env.render()
+    if done:
+        print("Game Over! Reward:", reward)
+        break
