@@ -1,0 +1,101 @@
+import numpy as np
+import random
+
+# Environment setup
+GRID_SIZE = 5
+START = (0, 0)
+OBSTACLES = [(1, 1), (2, 3), (3, 1)]
+DIRT_CELLS = [(i, j) for i in range(GRID_SIZE) for j in range(GRID_SIZE) if (i,j) not in OBSTACLES]
+
+ACTIONS = ["UP", "DOWN", "LEFT", "RIGHT"]
+alpha = 0.01  # Learning rate
+gamma = 0.9   # Discount factor
+episodes = 3000
+
+# Initialize policy parameters (softmax preferences)
+theta = {}
+for i in range(GRID_SIZE):
+    for j in range(GRID_SIZE):
+        theta[(i,j)] = np.zeros(len(ACTIONS))
+
+# Softmax action selection
+def softmax(state):
+    prefs = theta[state]
+    exp_prefs = np.exp(prefs - np.max(prefs))
+    return exp_prefs / np.sum(exp_prefs)
+
+def choose_action(state):
+    probs = softmax(state)
+    return np.random.choice(ACTIONS, p=probs)
+
+# Move function
+def move(state, action):
+    x, y = state
+    if action == "UP":
+        x = max(0, x - 1)
+    elif action == "DOWN":
+        x = min(GRID_SIZE - 1, x + 1)
+    elif action == "LEFT":
+        y = max(0, y - 1)
+    elif action == "RIGHT":
+        y = min(GRID_SIZE - 1, y + 1)
+    next_state = (x, y)
+    if next_state in OBSTACLES:
+        return state
+    return next_state
+
+# Reward function
+def reward(state, cleaned):
+    if state in OBSTACLES:
+        return -1
+    if state not in cleaned:
+        return 1  # reward for cleaning new cell
+    return 0
+
+# REINFORCE Algorithm
+for ep in range(episodes):
+    state = START
+    cleaned = set()
+    episode = []
+
+    # Generate an episode
+    while len(cleaned) < len(DIRT_CELLS):
+        action = choose_action(state)
+        next_state = move(state, action)
+        r = reward(next_state, cleaned)
+        if next_state not in OBSTACLES:
+            cleaned.add(next_state)
+        episode.append((state, action, r))
+        state = next_state
+
+        if len(cleaned) == len(DIRT_CELLS):
+            break
+
+    # Compute returns
+    G = 0
+    for t in reversed(range(len(episode))):
+        s, a, r = episode[t]
+        G = r + gamma * G
+        a_idx = ACTIONS.index(a)
+        probs = softmax(s)
+        for i in range(len(ACTIONS)):
+            indicator = 1 if i == a_idx else 0
+            theta[s][i] += alpha * (G - 0) * (indicator - probs[i])  # baseline = 0
+
+# Extract policy
+policy = {}
+for i in range(GRID_SIZE):
+    for j in range(GRID_SIZE):
+        state = (i,j)
+        if state in OBSTACLES:
+            policy[state] = "OBSTACLE"
+        else:
+            policy[state] = ACTIONS[np.argmax(theta[state])]
+
+# Display learned policy
+print("\nOptimal Cleaning Policy (REINFORCE):")
+for i in range(GRID_SIZE):
+    for j in range(GRID_SIZE):
+        print(f"{policy[(i,j)]:10}", end=" ")
+    print()
+
