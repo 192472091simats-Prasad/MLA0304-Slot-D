@@ -1,0 +1,131 @@
+import numpy as np
+
+# ---------------------------------------------------------
+# 4x4 Grid City:
+# W = warehouse (start)
+# D = delivery point (+5)
+# X = obstacle (-5)
+# 0 = normal cell
+# ---------------------------------------------------------
+grid = np.array([
+    ['W', '0', '0', 'D'],
+    ['0', 'X', '0', '0'],
+    ['0', '0', '0', 'D'],
+    ['0', '0', '0', '0']
+])
+
+# Rewards for grid cells
+reward_map = {
+    'W': 0,
+    '0': 0,
+    'D': 5,
+    'X': -5
+}
+
+# All possible actions
+actions = {
+    'U': (-1, 0),
+    'D': (1, 0),
+    'L': (0, -1),
+    'R': (0, 1)
+}
+
+gamma = 0.9   # discount factor
+theta = 1e-4  # threshold for convergence
+
+rows, cols = grid.shape
+
+# Initial policy (randomly choose 'U' for all states)
+policy = {(i, j): 'U' for i in range(rows) for j in range(cols)}
+
+# Initialize value function
+V = np.zeros((rows, cols))
+
+
+def is_valid(i, j):
+    return 0 <= i < rows and 0 <= j < cols
+
+
+# ---------------------------------------------------------
+# POLICY EVALUATION
+# ---------------------------------------------------------
+def policy_evaluation():
+    global V
+    while True:
+        delta = 0
+        new_V = np.copy(V)
+
+        for i in range(rows):
+            for j in range(cols):
+                a = policy[(i, j)]
+                di, dj = actions[a]
+                ni, nj = i + di, j + dj
+
+                if is_valid(ni, nj):
+                    reward = reward_map[grid[ni][nj]]
+                    new_V[i][j] = reward + gamma * V[ni][nj]
+                else:
+                    # hitting wall = penalty
+                    new_V[i][j] = -5 + gamma * V[i][j]
+
+                delta = max(delta, abs(V[i][j] - new_V[i][j]))
+
+        V = new_V
+
+        if delta < theta:
+            break
+
+
+# ---------------------------------------------------------
+# POLICY IMPROVEMENT
+# ---------------------------------------------------------
+def policy_improvement():
+    stable = True
+
+    for i in range(rows):
+        for j in range(cols):
+            old_action = policy[(i, j)]
+
+            best_value = -999
+            best_action = old_action
+
+            for a, (di, dj) in actions.items():
+                ni, nj = i + di, j + dj
+
+                if is_valid(ni, nj):
+                    reward = reward_map[grid[ni][nj]]
+                    value = reward + gamma * V[ni][nj]
+                else:
+                    value = -5 + gamma * V[i][j]
+
+                if value > best_value:
+                    best_value = value
+                    best_action = a
+
+            policy[(i, j)] = best_action
+
+            if best_action != old_action:
+                stable = False
+
+    return stable
+
+
+# ---------------------------------------------------------
+# POLICY ITERATION
+# ---------------------------------------------------------
+while True:
+    policy_evaluation()
+    if policy_improvement():
+        break
+
+
+# Print results
+print("Final Optimal Value Function:")
+print(V)
+
+print("\nOptimal Policy:")
+for i in range(rows):
+    row_policy = ''
+    for j in range(cols):
+        row_policy += policy[(i, j)] + ' '
+    print(row_policy)
