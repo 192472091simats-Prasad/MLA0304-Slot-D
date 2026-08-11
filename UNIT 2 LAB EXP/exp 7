@@ -1,0 +1,180 @@
+# Delivery robot: Bellman policy evaluation + Value Iteration + visualization 
+# - States: grid cells 
+# - Actions: Up, Down, Left, Right (deterministic; out-of-bounds => stay) 
+# - Rewards: step penalty and positive reward when moving into a delivery point (absorbing) 
+# - Compute state-value via Bellman expectation for given policies and via value iteration for optimal policy 
+# - Visualize value functions and overlay policy arrows 
+ 
+import numpy as np 
+import matplotlib.pyplot as plt 
+ 
+# ----- configurable MDP params ----- 
+ROWS, COLS = 6, 6 
+ACTIONS = ['U', 'D', 'L', 'R'] 
+DELIVERY_POINTS = [(0, 5), (5, 0)]   # delivery target coordinates (row, col) 
+STEP_REWARD = -1.0 
+DELIVERY_REWARD = 20.0 
+GAMMA = 0.9 
+TOL = 1e-5 
+ 
+# ----- helpers ----- 
+ACTION_TO_DELTA = {'U': (-1,0), 'D': (1,0), 'L': (0,-1), 'R': (0,1)} 
+def in_bounds(r,c): return 0 <= r < ROWS and 0 <= c < COLS 
+def is_delivery(s): return s in DELIVERY_POINTS 
+def next_state(s, a): 
+    r,c = s 
+    dr,dc = ACTION_TO_DELTA[a] 
+    nr,nc = r+dr, c+dc 
+    return (nr,nc) if in_bounds(nr,nc) else (r,c) 
+def reward(s,a,s2): 
+    return DELIVERY_REWARD if is_delivery(s2) else STEP_REWARD 
+ 
+states = [(r,c) for r in range(ROWS) for c in range(COLS)] 
+ 
+# ----- policies ----- 
+def random_policy(): 
+    # uniform over actions for non-delivery states; zero-actions for delivery (absorbing) 
+    pol = {} 
+    for s in states: 
+        if is_delivery(s): 
+            pol[s] = {a:0.0 for a in ACTIONS} 
+        else: 
+            pol[s] = {a:1.0/len(ACTIONS) for a in ACTIONS} 
+    return pol 
+ 
+def nearest_delivery_greedy_policy(): 
+    # deterministic (or split if tie): actions that reduce Manhattan distance to nearest delivery 
+    pol = {} 
+    for s in states: 
+        if is_delivery(s): 
+            pol[s] = {a:0.0 for a in ACTIONS} 
+            continue 
+        r,c = s 
+        # nearest delivery by manhattan 
+        dists = [abs(r-dr)+abs(c-dc) for (dr,dc) in DELIVERY_POINTS] 
+        target = DELIVERY_POINTS[int(np.argmin(dists))] 
+        best = [] 
+        best_dist = abs(r-target[0]) + abs(c-target[1]) 
+        for a in ACTIONS: 
+            s2 = next_state(s,a) 
+            dist2 = abs(s2[0]-target[0]) + abs(s2[1]-target[1]) 
+            if dist2 < best_dist: 
+                best = [a]; best_dist = dist2 
+            elif dist2 == best_dist and dist2 < abs(r-target[0]) + abs(c-target[1]): 
+                best.append(a) 
+        if not best: 
+            pol[s] = {a:1.0/len(ACTIONS) for a in ACTIONS} 
+        else: 
+            prob = 1.0/len(best) 
+            pol[s] = {a:(prob if a in best else 0.0) for a in ACTIONS} 
+    return pol 
+ 
+# ----- Bellman policy evaluation (iterative) ----- 
+def policy_evaluation(policy, gamma=GAMMA, tol=TOL): 
+    V = np.zeros((ROWS,COLS)) 
+    while True: 
+        delta = 0.0 
+        V_new = V.copy() 
+        for s in states: 
+            if is_delivery(s): 
+                V_new[s] = 0.0 
+                continue 
+            val = 0.0 
+            for a, pa in policy[s].items(): 
+                if pa == 0: continue 
+                s2 = next_state(s,a) 
+                rwd = reward(s,a,s2) 
+                future = 0.0 if is_delivery(s2) else V[s2] 
+                val += pa * (rwd + gamma * future) 
+            V_new[s] = val 
+            delta = max(delta, abs(V_new[s] - V[s])) 
+        V = V_new 
+        if delta < tol: 
+            break 
+    return V 
+ 
+# ----- value iteration (optimal V and greedy policy extraction) ----- 
+def value_iteration(gamma=GAMMA, tol=TOL): 
+    V = np.zeros((ROWS,COLS)) 
+    while True: 
+        delta = 0.0 
+        V_new = V.copy() 
+        for s in states: 
+            if is_delivery(s): 
+                V_new[s] = 0.0 
+                continue 
+            best_q = -1e9 
+            for a in ACTIONS: 
+                s2 = next_state(s,a) 
+                rwd = reward(s,a,s2) 
+                fut = 0.0 if is_delivery(s2) else V[s2] 
+                q = rwd + gamma * fut 
+                if q > best_q: best_q = q 
+            V_new[s] = best_q 
+            delta = max(delta, abs(V_new[s] - V[s])) 
+        V = V_new 
+        if delta < tol: break 
+    # extract deterministic greedy policy from V 
+    policy = {} 
+    for s in states: 
+        if is_delivery(s): 
+            policy[s] = {a:0.0 for a in ACTIONS} 
+            continue 
+        q_vals = [] 
+        for a in ACTIONS: 
+            s2 = next_state(s,a) 
+            rwd = reward(s,a,s2) 
+            fut = 0.0 if is_delivery(s2) else V[s2] 
+            q_vals.append(rwd + gamma * fut) 
+        max_q = max(q_vals) 
+        best_actions = [ACTIONS[i] for i,q in enumerate(q_vals) if abs(q-max_q) < 1e-9] 
+        prob = 1.0/len(best_actions) 
+        policy[s] = {a:(prob if a in best_actions else 0.0) for a in ACTIONS} 
+    return V, policy 
+ 
+# ----- visualization helpers ----- 
+def policy_to_arrows(policy): 
+    amap = {'U':'↑','D':'↓','L':'←','R':'→'} 
+    arr = np.full((ROWS,COLS), '', dtype=object) 
+    for s in states: 
+        r,c = s 
+        if is_delivery(s): 
+            arr[r,c] = 'D' 
+            continue 
+        acts = [a for a,p in policy[s].items() if p>0] 
+        if len(acts)==1: 
+            arr[r,c] = amap[acts[0]] 
+        else: 
+            arr[r,c] = ''.join(amap[a] for a in acts) 
+    return arr 
+ 
+def plot_value_and_policy(V, policy, title): 
+    arrows = policy_to_arrows(policy) 
+    plt.figure(figsize=(6,5)) 
+    im = plt.imshow(V, origin='upper', interpolation='nearest') 
+    plt.colorbar(im, label='State value') 
+    plt.title(title) 
+    plt.xlabel('Col'); plt.ylabel('Row') 
+    for r in range(ROWS): 
+        for c in range(COLS): 
+            txt = f"{V[r,c]:.1f}\n{arrows[r,c]}" 
+            plt.text(c, r, txt, ha='center', va='center', fontsize=9) 
+    plt.gca().invert_yaxis() 
+    plt.tight_layout() 
+    plt.show() 
+ 
+# ----- run evaluations ----- 
+rand_pol = random_policy() 
+near_pol = nearest_delivery_greedy_policy() 
+V_rand = policy_evaluation(rand_pol) 
+V_near = policy_evaluation(near_pol) 
+V_opt, opt_policy = value_iteration() 
+V_opt_eval = policy_evaluation(opt_policy)  # should match V_opt 
+ 
+# ----- visualize ----- 
+plot_value_and_policy(V_rand, rand_pol, "State-value: Random policy (Bellman eval)") 
+plot_value_and_policy(V_near, near_pol, "State-value: Nearest-delivery policy (Bellman eval)") 
+plot_value_and_policy(V_opt_eval, opt_policy, "State-value: Optimal policy (Value Iteration)") 
+ 
+# ----- simple output ----- 
+print("Delivery points:", DELIVERY_POINTS) 
