@@ -1,0 +1,27 @@
+# Very small simulation: 1D road with one intersection & traffic light. 
+import random 
+ 
+L, I = 10, 5              # road length, intersection index 
+CYCLE, G = 10, 5          # light cycle length, green duration 
+EP = 200 
+ 
+def light(t, phase): return 'G' if ((t+phase) % CYCLE) < G else 'R' 
+ 
+def run(policy_fn, episodes=EP): 
+    violations, steps_sum = 0, 0 
+    for _ in range(episodes): 
+        pos, t, phase = 0, 0, random.randrange(CYCLE) 
+        while pos < L-1: 
+            if policy_fn(pos, light(t,phase)): 
+                pos += 1 
+                if pos == I and light(t,phase)=='R': violations += 1 
+            t += 1 
+        steps_sum += t 
+    return {'avg_steps': steps_sum/episodes, 'violations': violations} 
+ 
+# Policies 
+safe = lambda pos, lt: False if pos==I-1 and lt=='R' else True    # stop before red 
+aggr = lambda pos, lt: True                                       # always go 
+ 
+print("Safe:", run(safe)) 
+print("Aggressive:", run(aggr)) 
