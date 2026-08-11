@@ -1,0 +1,83 @@
+import numpy as np
+import random
+
+random.seed(42)
+
+# -----------------------------
+# Environment Setup
+# -----------------------------
+
+# Each CSR has a skill level (0 to 1)
+CSRs = {
+    "CSR1": 0.9,
+    "CSR2": 0.7,
+    "CSR3": 0.5
+}
+
+# Calls have difficulty levels (0 to 1)
+def generate_call():
+    return round(random.uniform(0.1, 1.0), 2)
+
+# Reward: Higher reward if CSR skill >= call difficulty
+def get_reward(skill, difficulty):
+    if skill >= difficulty:
+        return 5 - (skill - difficulty)  # smaller gap = better handling
+    else:
+        return -2  # failure case
+
+
+# -----------------------------
+# Policies
+# -----------------------------
+def random_policy(call_difficulty):
+    return random.choice(list(CSRs.keys()))
+
+def greedy_policy(call_difficulty):
+    # Choose CSR with the highest skill
+    return max(CSRs, key=lambda x: CSRs[x])
+
+def priority_policy(call_difficulty):
+    # Assign tough calls to best CSR, easy calls to lowest skill CSR
+    if call_difficulty > 0.7:
+        return "CSR1"   # best
+    elif call_difficulty > 0.4:
+        return "CSR2"
+    else:
+        return "CSR3"
+
+
+# -----------------------------
+# Monte Carlo Simulation
+# -----------------------------
+def monte_carlo(policy_fn, episodes=1000):
+    total_reward = 0
+
+    for _ in range(episodes):
+        call = generate_call()
+        assigned = policy_fn(call)
+        reward = get_reward(CSRs[assigned], call)
+        total_reward += reward
+
+    return total_reward / episodes  # value estimate
+
+
+# -----------------------------
+# Evaluate All Policies
+# -----------------------------
+policies = {
+    "Random Policy": random_policy,
+    "Greedy Policy": greedy_policy,
+    "Priority Policy": priority_policy
+}
+
+results = {}
+
+for name, fn in policies.items():
+    value = monte_carlo(fn)
+    results[name] = value
+
+# Output Results
+print ("Monte Carlo Value Function Estimates:\n")
+for name, val in results. Items ():
+    print(f"{name}: {val:.3f}")
+
