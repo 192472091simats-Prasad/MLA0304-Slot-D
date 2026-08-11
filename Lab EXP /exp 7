@@ -1,0 +1,77 @@
+import numpy as np
+import matplotlib.pyplot as plt
+
+# Warehouse setup (4x4 grid)
+rows, cols = 4, 4
+states = [(i, j) for i in range(rows) for j in range(cols)]
+
+# Delivery points (goal states)
+delivery_points = [(0, 0), (3, 3)]
+
+# Parameters
+gamma = 0.9
+theta = 1e-4  # convergence threshold
+
+# Rewards
+def reward(state):
+    if state in delivery_points:
+        return 10
+    return -1
+
+# Next possible moves
+def next_states(state):
+    i, j = state
+    moves = []
+
+    if i > 0: moves.append((i-1, j))   # up
+    if i < rows-1: moves.append((i+1, j))  # down
+    if j > 0: moves.append((i, j-1))   # left
+    if j < cols-1: moves.append((i, j+1))  # right
+
+    return moves
+
+# Initialize value function
+V = {s: 0 for s in states}
+
+# ---- VALUE ITERATION ----
+while True:
+    delta = 0
+    new_V = V.copy()
+
+    for s in states:
+        if s in delivery_points:
+            new_V[s] = reward(s)  # terminal reward
+            continue
+
+        values = []
+        for next_s in next_states(s):
+            val = reward(s) + gamma * V[next_s]
+            values.append(val)
+
+        new_V[s] = max(values)
+        delta = max(delta, abs(new_V[s] - V[s]))
+
+    V = new_V
+    if delta < theta:
+        break
+
+# Convert V into 2D grid for visualization
+value_grid = np.zeros((rows, cols))
+for (i, j), v in V.items():
+    value_grid[i, j] = v
+
+# ---- VISUALIZATION ----
+plt.figure(figsize=(6, 5))
+plt.imshow(value_grid, cmap="hot", interpolation="nearest")
+plt.colorbar(label="State Value")
+plt.title("Value Function for Delivery Robot (Bellman Equation)")
+plt.xlabel("Columns")
+plt.ylabel("Rows")
+
+# Display values on grid cells
+for i in range(rows):
+    for j in range(cols):
+        plt.text(j, i, f"{value_grid[i, j]:.1f}",
+                 ha="center", va="center", color="white")
+
+plt.show()
