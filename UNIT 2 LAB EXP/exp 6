@@ -1,0 +1,102 @@
+# Multi-Armed Bandit Simulation: 
+# Epsilon-Greedy, UCB1, Thompson Sampling 
+ 
+import numpy as np 
+import matplotlib.pyplot as plt 
+from math import log, sqrt 
+ 
+np.random.seed(1) 
+ 
+# True click probabilities for ads (arms) 
+true_probs = [0.05, 0.10, 0.20, 0.12, 0.08] 
+K = len(true_probs) 
+rounds = 3000 
+ 
+# ------------------------------ 
+# EPSILON-GREEDY 
+# ------------------------------ 
+def epsilon_greedy(eps=0.1): 
+    counts = np.zeros(K) 
+    rewards = np.zeros(K) 
+    ctr = [] 
+ 
+    total_clicks = 0 
+    for t in range(1, rounds + 1): 
+        if np.random.rand() < eps: 
+            a = np.random.randint(K) 
+        else: 
+            a = np.argmax(rewards / (counts + 1e-9)) 
+ 
+        click = np.random.rand() < true_probs[a] 
+        counts[a] += 1 
+        rewards[a] += click 
+        total_clicks += click 
+ 
+        ctr.append(total_clicks / t) 
+    return ctr 
+ 
+# ------------------------------ 
+# UCB1 
+# ------------------------------ 
+def ucb1(): 
+    counts = np.zeros(K) 
+    rewards = np.zeros(K) 
+    ctr = [] 
+ 
+    # Play each ad once initially 
+    total_clicks = 0 
+    for a in range(K): 
+        click = np.random.rand() < true_probs[a] 
+        counts[a] += 1 
+        rewards[a] += click 
+        total_clicks += click 
+        ctr.append(total_clicks / (a + 1)) 
+ 
+    for t in range(K, rounds): 
+        ucb_vals = rewards / counts + np.sqrt(2 * np.log(t + 1) / counts) 
+        a = np.argmax(ucb_vals) 
+ 
+        click = np.random.rand() < true_probs[a] 
+        counts[a] += 1 
+        rewards[a] += click 
+        total_clicks += click 
+ 
+        ctr.append(total_clicks / (t + 1)) 
+    return ctr 
+ 
+# ------------------------------ 
+# THOMPSON SAMPLING 
+# ------------------------------ 
+def thompson_sampling(): 
+    alpha = np.ones(K) 
+    beta = np.ones(K) 
+    ctr = [] 
+ 
+    total_clicks = 0 
+    for t in range(1, rounds + 1): 
+        sampled = np.random.beta(alpha, beta) 
+        a = np.argmax(sampled) 
+ 
+        click = np.random.rand() < true_probs[a] 
+        alpha[a] += click 
+        beta[a] += (1 - click) 
+        total_clicks += click 
+ 
+        ctr.append(total_clicks / t) 
+    return ctr 
+ 
+# Run all algorithms 
+eps_ctr = epsilon_greedy() 
+ucb_ctr = ucb1() 
+ts_ctr = thompson_sampling() 
+ 
+# Plot results 
+plt.plot(eps_ctr, label="Epsilon-Greedy") 
+plt.plot(ucb_ctr, label="UCB1") 
+plt.plot(ts_ctr, label="Thompson Sampling") 
+plt.xlabel("Rounds") 
+plt.ylabel("Cumulative CTR") 
+plt.title("Bandit Algorithm Performance Comparison") 
+plt.legend() 
+plt.grid() 
+plt.show() 
