@@ -1,0 +1,74 @@
+import numpy as np
+
+# States: number of cars waiting (0 to 3+)
+states = [0, 1, 2, 3]
+actions = [0, 1]  # 0 = NS green, 1 = EW green
+
+# Transition model (simplified)
+def transition(state, action):
+    if action == 0:  
+        next_state = max(0, state - 1)  # NS moves, EW waits
+    else:
+        next_state = min(3, state + 1)  # NS waits, EW moves (opposite effect)
+    return next_state
+
+# Reward = negative waiting time
+def reward(state):
+    return -state
+
+# Initialize policy and value function
+policy = {s: np.random.choice(actions) for s in states}
+V = {s: 0 for s in states}
+
+gamma = 0.9  # discount factor
+
+def policy_evaluation(policy, V, theta=1e-5):
+    while True:
+        delta = 0
+        for s in states:
+            a = policy[s]
+            next_s = transition(s, a)
+            r = reward(s)
+            new_v = r + gamma * V[next_s]
+            delta = max(delta, abs(new_v - V[s]))
+            V[s] = new_v
+        if delta < theta:
+            break
+    return V
+
+def policy_improvement(V):
+    policy_stable = True
+    for s in states:
+        old_action = policy[s]
+
+        # evaluate both actions
+        values = []
+        for a in actions:
+            next_s = transition(s, a)
+            r = reward(s)
+            values.append(r + gamma * V[next_s])
+
+        policy[s] = np.argmax(values)
+        if old_action != policy[s]:
+            policy_stable = False
+
+    return policy, policy_stable
+
+# Policy Iteration
+while True:
+    V = policy_evaluation(policy, V)
+    policy, stable = policy_improvement(V)
+    if stable:
+        break
+
+print("Optimal Value Function:")
+for s in states:
+    print(f"State {s}: {V[s]:.3f}")
+
+print("\nOptimal Policy (0 = NS green, 1 = EW green):")
+for s in states:
+    print(f"State {s}: Action = {policy[s]}")
+
+
+
+
