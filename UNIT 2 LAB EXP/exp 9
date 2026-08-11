@@ -1,0 +1,163 @@
+""" 
+Monte Carlo estimation of state-value function for call assignment policies. 
+ 
+Discrete-time simulator: 
+- Time steps t = 0..T-1 
+- New call arrival each step with probability p_arr 
+- Each busy agent finishes the call in a step with probability p_srv (geometric service time) 
+- State s = (queue_length, free_agents) 
+- Two policies: 
+    1. random_assign: assign arriving calls uniformly to free agents (if any) otherwise queue 
+    2. longest_idle_first: assign to the agent who has been idle the longest (implemented by same effect as fill free slots first) 
+- Reward at each step r_t = - queue_length (penalty for waiting). We estimate discounted returns G_t = sum_{k>=0} gamma^k r_{t+k} 
+- Monte Carlo: run many episodes, and for each visited state accumulate returns to estimate V(s) = E[G | s] 
+""" 
+ 
+import random 
+from collections import defaultdict, deque 
+import math 
+ 
+# --------- parameters ---------- 
+N_AGENTS = 4 
+T = 200                 # steps per episode 
+N_EPISODES = 5000 
+p_arr = 0.3             # prob of new call arrival per step 
+p_srv = 0.2             # per-step service completion prob for a busy agent 
+gamma = 0.95            # discount factor 
+ 
+random.seed(0) 
+ 
+# --------- helper: simulate one episode under a policy ---------- 
+def run_episode(policy_fn): 
+    # agent status: for each agent -> remaining service indicator (0 = free, 1 = busy) 
+    # to keep it simple we store busy as boolean; service completion is probabilistic each step 
+    agents_busy = [False] * N_AGENTS 
+    # track idle time for tie-breaking (not strictly needed) 
+    idle_time = [0] * N_AGENTS 
+    queue = deque() 
+ 
+    rewards = [] 
+    states = [] 
+    for t in range(T): 
+        # record current state 
+        free_agents = sum(1 for b in agents_busy if not b) 
+        s = (len(queue), free_agents) 
+        states.append(s) 
+ 
+        # arrivals 
+        if random.random() < p_arr: 
+            # policy decides assignment given arrival (policy may assign immediately or queue) 
+            policy_fn(assign_event=True, agents_busy=agents_busy, idle_time=idle_time, queue=queue) 
+ 
+        # At start of step, agents may finish service 
+        for i in range(N_AGENTS): 
+            if agents_busy[i]: 
+                if random.random() < p_srv: 
+                    agents_busy[i] = False 
+                    idle_time[i] = 0 
+ 
+        # After completions, let policy assign queued calls to free agents 
+        policy_fn(assign_event=False, agents_busy=agents_busy, idle_time=idle_time, queue=queue) 
+ 
+        # update idle times 
+        for i in range(N_AGENTS): 
+            if not agents_busy[i]: 
+                idle_time[i] += 1 
+            else: 
+                idle_time[i] = 0 
+ 
+        # reward (negative queue length) 
+        rewards.append(-len(queue)) 
+ 
+    # compute discounted returns G_t for every time step (Monte Carlo return from that state) 
+    returns = [0.0] * T 
+    for t in range(T): 
+        G = 0.0 
+        powg = 1.0 
+        for k in range(t, T): 
+            G += powg * rewards[k] 
+            powg *= gamma 
+        returns[t] = G 
+ 
+    return states, returns 
+ 
+# --------- policy implementations ---------- 
+def policy_random(assign_event, agents_busy, idle_time, queue): 
+    """ 
+    Random policy: when arrival occurs, if free agents exist, assign to a random free agent. 
+    After completions, fill free agents from the queue arbitrarily (pop left). 
+    """ 
+    # If arrival, attempt immediate assign 
+    if assign_event: 
+        free_idxs = [i for i,b in enumerate(agents_busy) if not b] 
+        if free_idxs: 
+            i = random.choice(free_idxs) 
+            agents_busy[i] = True 
+            idle_time[i] = 0 
+        else: 
+            queue.append(1)  # a placeholder call 
+    else: 
+        # fill free agents from queue FIFO 
+        for i in range(len(agents_busy)): 
+            if not agents_busy[i] and queue: 
+                queue.popleft() 
+                agents_busy[i] = True 
+                idle_time[i] = 0 
+ 
+def policy_longest_idle(assign_event, agents_busy, idle_time, queue): 
+    """ 
+    Longest-idle-first: prefer assigning to longest idle agent (tie broken by index). 
+    Same assignment rules as random for arrivals, but selection differs. 
+    """ 
+    if assign_event: 
+        free_idxs = [i for i,b in enumerate(agents_busy) if not b] 
+        if free_idxs: 
+            # choose agent with max idle_time 
+            i = max(free_idxs, key=lambda x: idle_time[x]) 
+            agents_busy[i] = True 
+            idle_time[i] = 0 
+        else: 
+            queue.append(1) 
+    else: 
+        # fill free agents in order of decreasing idle time 
+        free_idxs = sorted([i for i,b in enumerate(agents_busy) if not b], key=lambda x: -idle_time[x]) 
+        for i in free_idxs: 
+            if queue: 
+                queue.popleft() 
+                agents_busy[i] = True 
+                idle_time[i] = 0 
+ 
+# --------- Monte Carlo estimation ---------- 
+def mc_estimate(policy_fn, n_episodes=N_EPISODES): 
+    # We'll store for each state: sum_returns and count 
+    sum_returns = defaultdict(float) 
+    count = defaultdict(int) 
+ 
+    for ep in range(n_episodes): 
+        states, returns = run_episode(policy_fn) 
+        for s, G in zip(states, returns): 
+            sum_returns[s] += G 
+            count[s] += 1 
+ 
+    # Build estimated V(s) dictionary for states with observations 
+    V = {s: sum_returns[s] / count[s] for s in count} 
+    return V 
+ 
+# --------- run and print a small summary ---------- 
+if __name__ == "__main__": 
+    V_rand = mc_estimate(policy_random, n_episodes=1500) 
+    V_idle = mc_estimate(policy_longest_idle, n_episodes=1500) 
+ 
+    # show value estimates for a few representative states 
+    sample_states = [(0, N_AGENTS), (1, N_AGENTS-1), (3, 2), (5, 0), (0,0)] 
+    print("State   V_random     V_longest_idle") 
+    for s in sample_states: 
+        vr = V_rand.get(s, float('nan')) 
+        vi = V_idle.get(s, float('nan')) 
+        print(f"{s:8}  {vr:8.3f}     {vi:8.3f}") 
+ 
+    # quick aggregated metric: average V over observed states 
+    avg_v_rand = sum(V_rand.values()) / len(V_rand) 
+    avg_v_idle = sum(V_idle.values()) / len(V_idle) 
+    print(f"\nAverage estimated V (random): {avg_v_rand:.3f}") 
+    print(f"Average estimated V (longest-idle): {avg_v_idle:.3f}") 
