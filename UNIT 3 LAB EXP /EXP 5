@@ -1,0 +1,85 @@
+import numpy as np
+import random
+
+# Smart grid environment
+GRID_HOURS = 24  # 24 hours simulation
+ACTIONS = ["REDUCE", "MAINTAIN", "INCREASE"]  # adjust energy production
+EPISODES = 2000
+
+# Environment parameters
+DEMAND = np.random.randint(50, 100, size=GRID_HOURS)  # simulated energy demand
+PRODUCTION = np.random.randint(50, 100, size=GRID_HOURS)  # initial production
+
+# TRPO hyperparameters (simplified)
+alpha = 0.01
+gamma = 0.9
+
+# Initialize policy parameters (softmax preferences) and value function
+theta = np.zeros(len(ACTIONS))
+V = 0.0
+
+def softmax(prefs):
+    exp_prefs = np.exp(prefs - np.max(prefs))
+    return exp_prefs / np.sum(exp_prefs)
+
+def choose_action():
+    probs = softmax(theta)
+    return np.random.choice(ACTIONS, p=probs), probs
+
+def reward(production, demand):
+    # Penalty for mismatch, cost for overproduction
+    diff = production - demand
+    return - (diff**2) * 0.1  # squared error penalty
+
+# Simplified TRPO-like update
+for ep in range(EPISODES):
+    trajectory = []
+    production_state = PRODUCTION.copy()
+    for t in range(GRID_HOURS):
+        action, probs = choose_action()
+        if action == "REDUCE":
+            production_state[t] -= 5
+        elif action == "INCREASE":
+            production_state[t] += 5
+        # reward
+        r = reward(production_state[t], DEMAND[t])
+        trajectory.append((action, r, probs))
+
+    # Compute returns
+    G = 0
+    for a, r, probs in reversed(trajectory):
+        G = r + gamma * G
+        # Simplified TRPO policy update (without full Hessian computation)
+        a_idx = ACTIONS.index(a)
+        grad = np.zeros(len(ACTIONS))
+        grad[a_idx] = 1 - probs[a_idx]
+        grad -= probs
+        theta += alpha * G * grad
+
+# Extract final policy
+final_probs = softmax(theta)
+policy = {ACTIONS[i]: final_probs[i] for i in range(len(ACTIONS))}
+
+# Display policy
+print("\nSmart Grid Energy Management Policy (TRPO-like):")
+for action, prob in policy.items():
+    print(f"{action}: {prob:.2f}")
+
+# Simulate optimized production vs demand
+optimized_production = PRODUCTION.copy()
+for t in range(GRID_HOURS):
+    action = max(policy, key=policy.get)
+    if action == "REDUCE":
+        optimized_production[t] -= 5
+    elif action == "INCREASE":
+        optimized_production[t] += 5
+
+print("\nHour | Demand | Optimized Production")
+for t in range(GRID_HOURS):
+    print(f"{t:2d}   | {DEMAND[t]:3d}   | {optimized_production[t]:3d}")
+
+
+
+
+
+
