@@ -1,0 +1,53 @@
+import numpy as np
+
+# Grid size (3x3 city)
+grid_size = 3
+
+# Rewards
+pickup = (2, 2)  # pickup point
+R = np.zeros((grid_size, grid_size))
+R[pickup] = 10   # reward for reaching pickup
+
+# Actions: Up, Down, Left, Right
+actions = {
+    0: (-1, 0),
+    1: (1, 0),
+    2: (0, -1),
+    3: (0, 1)
+}
+
+gamma = 0.9
+theta = 0.0001
+
+def is_valid(x, y):
+    return 0 <= x < grid_size and 0 <= y < grid_size
+
+def value_iteration():
+    V = np.zeros((grid_size, grid_size))
+    policy = np.zeros((grid_size, grid_size), dtype=int)
+
+    while True:
+        delta = 0
+        for i in range(grid_size):
+            for j in range(grid_size):
+                values = []
+                for a, (dx, dy) in actions.items():
+                    nx, ny = i + dx, j + dy
+                    if not is_valid(nx, ny):
+                        nx, ny = i, j  # stay in place if invalid
+                    values.append(R[nx, ny] + gamma * V[nx, ny])
+
+                max_value = max(values)
+                delta = max(delta, abs(max_value - V[i, j]))
+                V[i, j] = max_value
+                policy[i, j] = np.argmax(values)
+
+        if delta < theta:
+            break
+
+    return V, policy
+
+V, policy = value_iteration()
+
+print("Optimal Value Function:\n", V)
+print("\nOptimal Policy (0=Up,1=Down,2=Left,3=Right):\n", policy)
