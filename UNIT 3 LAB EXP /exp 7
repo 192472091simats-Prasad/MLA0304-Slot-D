@@ -1,0 +1,45 @@
+import numpy as np
+import random
+
+# Environment: simplified portfolio
+NUM_STOCKS = 5
+EPISODES = 2000
+gamma = 0.9
+lr_actor = 0.01
+lr_critic = 0.05
+
+# Simulated stock returns per day
+stock_returns = np.random.randn(NUM_STOCKS) * 0.01  # small daily returns
+
+# Initialize actor (policy weights) and critic (value weights)
+actor_weights = np.random.randn(NUM_STOCKS) * 0.01
+critic_weights = np.random.randn(NUM_STOCKS) * 0.01
+
+def choose_action(state):
+    prefs = np.dot(state, actor_weights)
+    probs = np.exp(prefs - np.max(prefs))
+    probs /= np.sum(probs)
+    action = np.random.choice(NUM_STOCKS, p=probs)
+    return action, probs
+
+for ep in range(EPISODES):
+    state = np.ones(NUM_STOCKS)  # normalized portfolio allocation
+    for t in range(NUM_STOCKS):
+        action, probs = choose_action(state)
+        r = stock_returns[action] - 0.005  # reward minus risk penalty
+        # TD error
+        td_error = r + gamma * np.dot(state, critic_weights) - np.dot(state, critic_weights)
+        # Update critic
+        critic_weights += lr_critic * td_error * state
+        # Update actor
+        grad = np.zeros(NUM_STOCKS)
+        grad[action] = 1 - probs[action]
+        grad -= probs
+        actor_weights += lr_actor * td_error * grad
+        state[action] = 0  # stock invested, reduce available allocation
+
+# Display portfolio preference
+portfolio_pref = np.exp(actor_weights)/np.sum(np.exp(actor_weights))
+print("\nPortfolio allocation preferences (A3C-like):")
+for i in range(NUM_STOCKS):
+    print(f"Stock {i}: {portfolio_pref[i]:.2f}")
