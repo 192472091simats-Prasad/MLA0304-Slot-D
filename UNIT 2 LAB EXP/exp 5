@@ -1,0 +1,113 @@
+# Grid-world MDP + Value Iteration for Taxi Dispatch 
+import math 
+import numpy as np 
+ 
+# Grid and MDP parameters 
+ROWS = 5 
+COLS = 5 
+ACTIONS = ['U', 'D', 'L', 'R']  # up, down, left, right 
+ACTION_TO_DELTA = {'U': (-1, 0), 'D': (1, 0), 'L': (0, -1), 'R': (0, 1)} 
+ 
+# MDP rewards and settings 
+STEP_REWARD = -1.0           # penalty per move to encourage quick pickups 
+PICKUP_REWARD = 20.0        # reward for reaching a pickup point 
+GAMMA = 0.9                 # discount factor 
+THRESHOLD = 1e-4            # stopping criteria for value iteration 
+ 
+# Define pickup points (row, col). These are terminal absorbing states for this example. 
+PICKUP_POINTS = [(0, 4), (4, 0)] 
+ 
+def in_bounds(r, c): 
+    return 0 <= r < ROWS and 0 <= c < COLS 
+ 
+def is_pickup(r, c): 
+    return (r, c) in PICKUP_POINTS 
+ 
+def next_state(r, c, action): 
+    dr, dc = ACTION_TO_DELTA[action] 
+    nr, nc = r + dr, c + dc 
+    if in_bounds(nr, nc): 
+        return nr, nc 
+    # if action would move outside, remain in same state 
+    return r, c 
+ 
+def reward_for_transition(r, c, action, nr, nc): 
+    # if next state is pickup -> pickup reward (and we assume episode ends / absorbing) 
+    if is_pickup(nr, nc): 
+        return PICKUP_REWARD 
+    # Otherwise step cost 
+    return STEP_REWARD 
+ 
+def value_iteration(): 
+    V = np.zeros((ROWS, COLS)) 
+    iteration = 0 
+    while True: 
+        delta = 0.0 
+        newV = V.copy() 
+        for r in range(ROWS): 
+            for c in range(COLS): 
+                if is_pickup(r, c): 
+                    # Terminal state: set to 0 (reward is collected on transition) 
+                    newV[r, c] = 0.0 
+                    continue 
+                best_q = -math.inf 
+                for a in ACTIONS: 
+                    nr, nc = next_state(r, c, a) 
+                    rwd = reward_for_transition(r, c, a, nr, nc) 
+                    next_val = 0.0 if is_pickup(nr, nc) else V[nr, nc] 
+                    q = rwd + GAMMA * next_val 
+                    if q > best_q: 
+                        best_q = q 
+                newV[r, c] = best_q 
+                delta = max(delta, abs(newV[r, c] - V[r, c])) 
+        V = newV 
+        iteration += 1 
+        if delta < THRESHOLD: 
+            break 
+    return V, iteration 
+ 
+def extract_policy(V): 
+    policy = np.full((ROWS, COLS), '', dtype=object) 
+    for r in range(ROWS): 
+        for c in range(COLS): 
+            if is_pickup(r, c): 
+                policy[r, c] = 'P'  # pickup/terminal 
+                continue 
+            best_a = None 
+            best_q = -math.inf 
+            for a in ACTIONS: 
+                nr, nc = next_state(r, c, a) 
+                rwd = reward_for_transition(r, c, a, nr, nc) 
+                next_val = 0.0 if is_pickup(nr, nc) else V[nr, nc] 
+                q = rwd + GAMMA * next_val 
+                if q > best_q: 
+                    best_q = q 
+                    best_a = a 
+            policy[r, c] = best_a 
+    return policy 
+ 
+def pretty_print_values(V): 
+    print("Value function (rows top->bottom):") 
+    for r in range(ROWS): 
+        row_vals = " | ".join(f"{V[r, c]:6.2f}" for c in range(COLS)) 
+        print(row_vals) 
+    print() 
+ 
+def pretty_print_policy(policy): 
+    arrow = {'U': '↑', 'D': '↓', 'L': '←', 'R': '→', 'P': 'P'} 
+    print("Policy (best action from each cell; 'P' = pickup):") 
+    for r in range(ROWS): 
+        row_vals = " ".join(f" {arrow[policy[r,c]]} " for c in range(COLS)) 
+        print(row_vals) 
+    print() 
+ 
+# Run value iteration and extract policy 
+V, iters = value_iteration() 
+policy = extract_policy(V) 
+ 
+print(f"Value iteration converged in {iters} iterations.\n") 
+pretty_print_values(V) 
+pretty_print_policy(policy) 
+ 
+print("Pickup points:", PICKUP_POINTS) 
+print("Interpretation: follow arrows to reach a pickup quickly.") 
