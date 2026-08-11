@@ -1,0 +1,83 @@
+import numpy as np
+import math
+import random
+
+# True click-through rates of ads
+true_ctr = [0.05, 0.08, 0.12, 0.03]   # 4 ads
+
+num_ads = len(true_ctr)
+rounds = 5000
+
+# Tracking results
+eps_rewards = np.zeros(num_ads)
+eps_counts = np.zeros(num_ads)
+
+ucb_rewards = np.zeros(num_ads)
+ucb_counts = np.zeros(num_ads)
+
+ts_success = np.zeros(num_ads)
+ts_failure = np.zeros(num_ads)
+
+# ---- EPSILON GREEDY ----
+epsilon = 0.1
+eps_total_reward = 0
+
+for t in range(rounds):
+    if random.random() < epsilon:
+        ad = random.randint(0, num_ads - 1)
+    else:
+        ad = np.argmax(eps_rewards / (eps_counts + 1))
+    
+    click = 1 if random.random() < true_ctr[ad] else 0
+    eps_counts[ad] += 1
+    eps_rewards[ad] += click
+    eps_total_reward += click
+
+
+# ---- UCB ----
+ucb_total_reward = 0
+
+for t in range(1, rounds + 1):
+    ucb_values = []
+    for ad in range(num_ads):
+        if ucb_counts[ad] == 0:
+            ucb_values.append(float('inf'))
+        else:
+            avg = ucb_rewards[ad] / ucb_counts[ad]
+            bonus = math.sqrt(2 * math.log(t) / ucb_counts[ad])
+            ucb_values.append(avg + bonus)
+    ad = np.argmax(ucb_values)
+
+    click = 1 if random.random() < true_ctr[ad] else 0
+    ucb_counts[ad] += 1
+    ucb_rewards[ad] += click
+    ucb_total_reward += click
+
+
+# ---- THOMPSON SAMPLING ----
+ts_total_reward = 0
+
+for t in range(rounds):
+    samples = [np.random.beta(ts_success[i] + 1, ts_failure[i] + 1)
+               for i in range(num_ads)]
+    ad = np.argmax(samples)
+
+    click = 1 if random.random() < true_ctr[ad] else 0
+
+    if click == 1:
+        ts_success[ad] += 1
+    else:
+        ts_failure[ad] += 1
+
+    ts_total_reward += click
+
+
+print("Epsilon-Greedy CTR:", eps_total_reward / rounds)
+print("UCB CTR:", ucb_total_reward / rounds)
+print("Thompson Sampling CTR:", ts_total_reward / rounds)
+
+best = max(eps_total_reward, ucb_total_reward, ts_total_reward)
+print("\nBest Algorithm:", 
+      "Thompson Sampling" if best == ts_total_reward 
+      else "UCB" if best == ucb_total_reward 
+      else "Epsilon-Greedy")
