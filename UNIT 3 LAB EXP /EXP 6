@@ -1,0 +1,80 @@
+import numpy as np
+import random
+
+# Environment: simplified user-movie interaction
+NUM_USERS = 5
+NUM_MOVIES = 10
+EPISODES = 2000
+
+# User preferences (true unknown ratings)
+user_preferences = np.random.rand(NUM_USERS, NUM_MOVIES)
+
+# Actions: recommend a movie (continuous score)
+ACTION_DIM = 1  # for continuous rating suggestion
+STATE_DIM = NUM_MOVIES  # user feedback history
+
+# Initialize actor and critic weights (simplified linear)
+actor_weights = np.random.randn(STATE_DIM, ACTION_DIM) * 0.01
+critic_weights = np.random.randn(STATE_DIM + ACTION_DIM) * 0.01
+
+lr_actor = 0.01
+lr_critic = 0.01
+gamma = 0.9
+
+def actor(state):
+    # Linear actor: state -> action
+    return np.tanh(np.dot(state, actor_weights))  # normalized score [-1,1]
+
+def critic(state, action):
+    sa = np.concatenate([state, [action]])
+    return np.dot(sa, critic_weights)
+
+def choose_movie(user_id, state):
+    # Recommend movie based on highest predicted rating
+    scores = actor(state)
+    # map continuous output to movie index
+    available_movies = np.where(state==0)[0]
+    if len(available_movies)==0:
+        return None
+    idx = np.argmax([scores[m] for m in available_movies])
+    return available_movies[idx]
+
+# Training loop
+for ep in range(EPISODES):
+    user_id = random.randint(0, NUM_USERS-1)
+    state = np.zeros(NUM_MOVIES)  # initially no feedback
+    for t in range(NUM_MOVIES):
+        movie = choose_movie(user_id, state)
+        if movie is None:
+            break
+        # Simulate feedback
+        true_rating = user_preferences[user_id, movie]
+        r = true_rating - 0.5  # reward scaled
+        # Update critic (simplified TD)
+        action_val = actor(state)[movie]
+        td_error = r + gamma * 0 - critic(state, action_val)  # next value=0
+        critic_grad = np.concatenate([state, [action_val]])
+        critic_weights += lr_critic * td_error * critic_grad
+        # Update actor (policy gradient)
+        actor_grad = np.zeros_like(actor_weights)
+        actor_grad[:, movie] = td_error * state
+        actor_weights += lr_actor * actor_grad
+        # Update state with feedback
+        state[movie] = 1
+
+# Test: recommend for a user
+test_user = 0
+state = np.zeros(NUM_MOVIES)
+recommendation_order = []
+while len(recommendation_order) < NUM_MOVIES:
+    movie = choose_movie(test_user, state)
+    if movie is None:
+        break
+    recommendation_order.append(movie)
+    state[movie] = 1
+
+print("\nRecommended Movie Order for User 0 (DDPG-like):")
+print(recommendation_order)
+
+print("\nUser True Ratings:")
+print(user_preferences[test_user])
